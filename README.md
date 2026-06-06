@@ -1,4 +1,4 @@
-# AlphaEdge — AI Stock Intelligence Platform
+# IntelInvest — AI Stock Intelligence Platform
 
 A full-stack AI-powered stock analyzer with live market data, insider flow,
 real-time news, and the proprietary **Priced-In Engine™**.
@@ -8,7 +8,7 @@ real-time news, and the proprietary **Priced-In Engine™**.
 ## Architecture
 
 ```
-alphaedge/
+IntelInvest/
 ├── server/
 │   └── index.js        ← Express server: API proxy, data enrichment, persistence
 ├── public/
