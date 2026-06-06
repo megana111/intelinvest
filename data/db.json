@@ -1,0 +1,75 @@
+{
+  "profiles": {
+    "test123": {
+      "risk": "Aggressive",
+      "horizon": "1-12 months",
+      "amount": "$10,000-$50,000",
+      "updatedAt": "2026-06-03T02:12:34.067Z"
+    },
+    "ae_1780781707166_jpxwfcz5hnh": {
+      "risk": "Aggressive — maximize returns",
+      "horizon": "1–12 months (medium-term)",
+      "amount": "$1,000–$10,000",
+      "instrument": "Stocks (equities)",
+      "sectors": "Technology & AI",
+      "behavior": "Depends on the news",
+      "focus": "Undervalued fundamentals",
+      "updatedAt": "2026-06-06T22:32:34.802Z",
+      "hiddenGemMode": true
+    }
+  },
+  "picks": [
+    {
+      "id": "1780452754152",
+      "sessionId": "test123",
+      "ticker": "NVDA",
+      "company": "NVIDIA Corp",
+      "entryPrice": 875.5,
+      "conviction": 88,
+      "thesis": "AI chip demand far outpacing supply.",
+      "instrument": "Stocks",
+      "pickedAt": "2026-06-03T02:12:34.152Z",
+      "currentPrice": 875.5,
+      "returnPct": 0
+    },
+    {
+      "id": "1780783933699",
+      "sessionId": "ae_1780781707166_jpxwfcz5hnh",
+      "ticker": "SOUN",
+      "company": "SoundHound AI Inc.",
+      "entryPrice": 8.74,
+      "conviction": 91,
+      "thesis": "SoundHound AI is the only pure-play voice AI company with a proven enterprise deployment model across automotive, restaurant, and financial services verticals — generating real recurring revenue while trading at a fraction of its addressable market. The market is mispricing SOUN by treating it like a speculative AI startup when it already has 200+ brand partners, a $1B+ backlog, and accelerating revenue growth. With Nvidia as a strategic investor and major OEM integrations going live in 2025, the re-rating catalyst is already in motion.",
+      "instrument": "Stocks (equities)",
+      "pickedAt": "2026-06-06T22:12:13.699Z",
+      "currentPrice": 8.74,
+      "returnPct": 0
+    },
+    {
+      "id": "1780785103206",
+      "sessionId": "ae_1780781707166_jpxwfcz5hnh",
+      "ticker": "NVDA",
+      "company": "NVIDIA Corporation",
+      "entryPrice": 135.58,
+      "conviction": 94,
+      "thesis": "NVIDIA remains the undisputed infrastructure backbone of the AI supercycle, with Blackwell GPU architecture driving a generational revenue step-up that consensus models still underestimate. The combination of sovereign AI spending acceleration, hyperscaler capex commitments through 2027, and NVIDIA's expanding software moat via CUDA and NIM microservices creates compounding earnings power that justifies a significant premium. At current prices, the market is pricing in strong growth but not the full optionality of NVIDIA's data center networking, automotive, and robotics verticals coming online simultaneously.",
+      "instrument": "Stocks (equities)",
+      "pickedAt": "2026-06-06T22:31:43.206Z",
+      "currentPrice": 135.58,
+      "returnPct": 0
+    },
+    {
+      "id": "1780785451517",
+      "sessionId": "ae_1780781707166_jpxwfcz5hnh",
+      "ticker": "CSWI",
+      "company": "CSW Industrials",
+      "entryPrice": 198.4,
+      "conviction": 81,
+      "thesis": "CSW Industrials is a quietly compounding industrial conglomerate with a sticky product portfolio spanning HVAC, plumbing, and electrical markets — segments that benefit from both new construction and repair/replacement cycles. The company consistently delivers double-digit revenue growth, expanding operating margins, and disciplined capital allocation with virtually zero retail investor awareness. At current valuations, the market is underpricing CSWI's ability to compound earnings at 15%+ annually through organic growth and bolt-on acquisitions.",
+      "instrument": "Stocks (equities)",
+      "pickedAt": "2026-06-06T22:37:31.517Z",
+      "currentPrice": 198.4,
+      "returnPct": 0
+    }
+  ]
+}
