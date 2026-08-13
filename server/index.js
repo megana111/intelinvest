@@ -3,7 +3,7 @@ import cors from 'cors';
 import fetch from 'node-fetch';
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { dirname, join, resolve } from 'path';
 import dotenv from 'dotenv';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -334,5 +334,12 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Intellivest running → http://localhost:${PORT}`));
+export default app;
+
+// Start a long-running server only for local development. Vercel imports the
+// Express app from api/[...path].js and manages the HTTP server itself.
+const isDirectRun = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isDirectRun) {
+  const PORT = process.env.PORT || 3002;
+  app.listen(PORT, () => console.log(`Intellivest running → http://localhost:${PORT}`));
+}
