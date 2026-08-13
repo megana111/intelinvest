@@ -17,12 +17,26 @@ app.use(express.json({ limit: '2mb' }));
 app.use(express.static(join(ROOT, 'public')));
 
 // ── JSON "database" ──────────────────────────────────────────────────────────
+let memoryDB = null;
+
 function loadDB() {
-  if (!existsSync(DATA_FILE)) return { profiles: {}, picks: [] };
-  try { return JSON.parse(readFileSync(DATA_FILE, 'utf8')); } catch { return { profiles: {}, picks: [] }; }
+  if (memoryDB) return memoryDB;
+  if (!existsSync(DATA_FILE)) memoryDB = { profiles: {}, picks: [] };
+  else {
+    try { memoryDB = JSON.parse(readFileSync(DATA_FILE, 'utf8')); }
+    catch { memoryDB = { profiles: {}, picks: [] }; }
+  }
+  return memoryDB;
 }
 function saveDB(db) {
-  writeFileSync(DATA_FILE, JSON.stringify(db, null, 2));
+  memoryDB = db;
+  if (process.env.VERCEL) return false;
+  try {
+    writeFileSync(DATA_FILE, JSON.stringify(db, null, 2));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // ── ENV / API keys ────────────────────────────────────────────────────────────
@@ -197,8 +211,8 @@ app.post('/api/profile', (req, res) => {
   if (!sessionId) return res.status(400).json({ error: 'sessionId required' });
   const db = loadDB();
   db.profiles[sessionId] = { ...profile, updatedAt: new Date().toISOString() };
-  saveDB(db);
-  res.json({ ok: true });
+  const persisted = saveDB(db);
+  res.json({ ok: true, persisted });
 });
 
 app.get('/api/profile/:sessionId', (req, res) => {
@@ -224,8 +238,8 @@ app.post('/api/picks', (req, res) => {
     currentPrice: pick.price,
     returnPct: 0,
   });
-  saveDB(db);
-  res.json({ ok: true });
+  const persisted = saveDB(db);
+  res.json({ ok: true, persisted });
 });
 
 // Get all picks (leaderboard)
@@ -272,9 +286,10 @@ app.post('/api/picks/refresh', async (req, res) => {
     pick.priceUpdatedAt = new Date().toISOString();
     updated++;
   }
-  saveDB(db);
+  const persisted = saveDB(db);
   res.json({
     ok: true,
+    persisted,
     updated,
     failed,
     picks: db.picks.slice().reverse(),

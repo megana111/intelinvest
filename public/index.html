@@ -746,6 +746,7 @@ function toggleHiddenGem(on) {
     : "Off — we'll search the full market, including large caps.";
   toast(on ? 'Hidden gems mode on' : 'Full universe mode');
   if (dna.risk) {
+    localStorage.setItem('iv_profile', JSON.stringify({...dna, hiddenGemMode}));
     fetch(API_BASE+'/api/profile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:SESSION_ID,profile:{...dna,hiddenGemMode}})}).catch(()=>{});
   }
 }
@@ -782,6 +783,7 @@ function handleOnboard(val) {
 
 async function finishOnboard() {
   updateDNAPanel();
+  localStorage.setItem('iv_profile', JSON.stringify({...dna, hiddenGemMode}));
   // persist profile
   try { await fetch(API_BASE+'/api/profile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:SESSION_ID,profile:{...dna,hiddenGemMode}})}); } catch{}
   const riskMap={Conservative:20,Moderate:45,Aggressive:75,Degen:95};
@@ -1630,30 +1632,43 @@ renderWatchlist();
 renderSBWatchlist();
 if (watchlist.length) refreshWatchlistPrices();
 
-// Restore profile if exists
-(async () => {
+async function restoreProfile() {
+  let p = null;
+  try { p = JSON.parse(localStorage.getItem('iv_profile') || 'null'); } catch {}
   try {
-    const r = await fetch(`${API_BASE}/api/profile/${SESSION_ID}`);
-    const p = await r.json();
-    if (p && p.risk) {
-      dna = p; onbStep = ONBOARD.length;
-      if (typeof p.hiddenGemMode === 'boolean') {
-        hiddenGemMode = p.hiddenGemMode;
-        localStorage.setItem('iv_hidden_gem', hiddenGemMode ? 'true' : 'false');
-        initHiddenGemToggle();
-      }
-      updateDNAPanel();
+    if (!p?.risk) {
+      const r = await fetch(`${API_BASE}/api/profile/${SESSION_ID}`);
+      if (r.ok) p = await r.json();
     }
   } catch {}
-})();
+  if (!p?.risk) return false;
 
-// Welcome message
-setTimeout(() => {
+  dna = p;
+  onbStep = ONBOARD.length;
+  if (typeof p.hiddenGemMode === 'boolean') {
+    hiddenGemMode = p.hiddenGemMode;
+    localStorage.setItem('iv_hidden_gem', hiddenGemMode ? 'true' : 'false');
+    initHiddenGemToggle();
+  }
+  localStorage.setItem('iv_profile', JSON.stringify({...dna, hiddenGemMode}));
+  updateDNAPanel();
+  return true;
+}
+
+async function bootChat() {
+  const restored = await restoreProfile();
+  if (restored) {
+    addMsg('ai', `Welcome back! Your investing profile is ready.<br><br>Ask me for a <b>new stock pick</b> whenever you'd like me to scan the market.`);
+    return;
+  }
+
   addMsg('ai', `Hi there! Welcome to <b>Intellivest</b> — your friendly guide to smarter investing.<br><br>
 I'll help you find stock ideas tailored to your style, using live prices, insider activity, and fresh news. Every pick gets tracked so you can see how it performs over time.<br><br>
 Let's start with a few quick questions so I can learn what matters to you — it'll only take a minute!`);
   setTimeout(() => { const q=ONBOARD[0]; addMsg('ai', q.q, q.c); }, 900);
-}, 300);
+}
+
+setTimeout(bootChat, 300);
 </script>
 </body>
 </html>
