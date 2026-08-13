@@ -95,7 +95,30 @@ async function getPolygonQuote(ticker) {
   } catch { return null; }
 }
 
-// ── Polygon: snapshot (price + change) ───────────────────────────────────────
+// Free-tier fallback: previous daily bar close
+async function getPolygonPrevClose(ticker) {
+  if (!POLYGON_KEY) return null;
+  try {
+    const r = await fetch(
+      `https://api.polygon.io/v2/aggs/ticker/${ticker}/prev?adjusted=true&apiKey=${POLYGON_KEY}`,
+      { timeout: 5000 }
+    );
+    const d = await r.json();
+    const bar = d.results?.[0];
+    if (!bar?.c) return null;
+    return {
+      price:      bar.c,
+      change_pct: bar.o ? +(((bar.c - bar.o) / bar.o) * 100).toFixed(2) : null,
+      volume:     bar.v,
+      open:       bar.o,
+      high:       bar.h,
+      low:        bar.l,
+      source:     'prev_close',
+    };
+  } catch { return null; }
+}
+
+// ── Polygon: snapshot (price + change), with prev-close fallback ──────────────
 async function getPolygonSnapshot(ticker) {
   if (!POLYGON_KEY) return null;
   try {
@@ -105,16 +128,19 @@ async function getPolygonSnapshot(ticker) {
     );
     const d = await r.json();
     const t = d.ticker;
-    if (!t) return null;
-    return {
-      price:      t.day?.c || t.prevDay?.c,
-      change_pct: t.todaysChangePerc,
-      volume:     t.day?.v,
-      open:       t.day?.o,
-      high:       t.day?.h,
-      low:        t.day?.l,
-    };
-  } catch { return null; }
+    if (t) {
+      return {
+        price:      t.day?.c || t.prevDay?.c,
+        change_pct: t.todaysChangePerc,
+        volume:     t.day?.v,
+        open:       t.day?.o,
+        high:       t.day?.h,
+        low:        t.day?.l,
+        source:     'snapshot',
+      };
+    }
+  } catch { /* fall through */ }
+  return getPolygonPrevClose(ticker);
 }
 
 // ── Finnhub: company info + earnings ─────────────────────────────────────────
@@ -206,6 +232,53 @@ app.post('/api/picks', (req, res) => {
 app.get('/api/picks', (req, res) => {
   const db = loadDB();
   res.json(db.picks.reverse());
+});
+
+// Refresh currentPrice + returnPct from Polygon (all picks, or one by id)
+app.post('/api/picks/refresh', async (req, res) => {
+  if (!POLYGON_KEY) {
+    return res.status(503).json({ error: 'POLYGON_API_KEY not set — cannot refresh prices' });
+  }
+  const db = loadDB();
+  const idFilter = req.body?.id;
+  const targets = idFilter
+    ? db.picks.filter(p => p.id === idFilter)
+    : db.picks;
+
+  if (!targets.length) {
+    return res.json({ ok: true, updated: 0, failed: [], picks: db.picks.reverse() });
+  }
+
+  // One Polygon call per unique ticker
+  const tickers = [...new Set(targets.map(p => p.ticker).filter(Boolean))];
+  const priceMap = {};
+  const failed = [];
+  await Promise.all(tickers.map(async (ticker) => {
+    const snap = await getPolygonSnapshot(ticker);
+    if (snap?.price != null && Number.isFinite(+snap.price)) {
+      priceMap[ticker] = +snap.price;
+    } else {
+      failed.push(ticker);
+    }
+  }));
+
+  let updated = 0;
+  for (const pick of targets) {
+    const price = priceMap[pick.ticker];
+    if (price == null) continue;
+    const entry = +pick.entryPrice;
+    pick.currentPrice = price;
+    pick.returnPct = entry > 0 ? +(((price - entry) / entry) * 100).toFixed(2) : 0;
+    pick.priceUpdatedAt = new Date().toISOString();
+    updated++;
+  }
+  saveDB(db);
+  res.json({
+    ok: true,
+    updated,
+    failed,
+    picks: db.picks.slice().reverse(),
+  });
 });
 
 // Enrich a ticker with live data

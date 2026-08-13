@@ -70,7 +70,7 @@ node --require dotenv/config server/index.js
 ### 4. Open the app
 
 ```
-http://localhost:3000
+http://localhost:3002
 ```
 
 ---
@@ -128,7 +128,7 @@ To keep leaderboard returns current, add a cron job that calls:
 
 ```bash
 # Example: update prices every hour
-curl http://localhost:3000/api/picks   # get all picks
+curl http://localhost:3002/api/picks   # get all picks
 # For each pick, fetch current price and PATCH /api/picks/:id
 ```
 

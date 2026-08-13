@@ -220,9 +220,13 @@ html,body{background:var(--cream);color:var(--text);font-family:'Plus Jakarta Sa
 .lb-view{flex:1;overflow-y:auto;padding:24px}
 .lb-view::-webkit-scrollbar{width:4px}
 .lb-view::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
-.lb-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.lb-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;gap:16px;flex-wrap:wrap}
 .lb-title{font-size:22px;font-weight:800;color:var(--text)}
 .lb-sub{font-size:13px;color:var(--text3);margin-top:4px}
+.lb-actions{display:flex;align-items:center;gap:12px}
+.lb-refresh{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--border2);border-radius:12px;padding:8px 14px;font-size:12px;font-weight:600;color:var(--pink-dark);cursor:pointer;transition:all .15s}
+.lb-refresh:hover{border-color:var(--pink);background:var(--pink-soft)}
+.lb-refresh:disabled{opacity:.55;cursor:default;transform:none}
 .lb-table{width:100%;border-collapse:collapse;background:#fff;border-radius:16px;overflow:hidden;border:1px solid var(--border)}
 .lb-table th{font-size:11px;color:var(--text3);font-weight:600;padding:12px 14px;border-bottom:1px solid var(--border);text-align:left;background:var(--cream3)}
 .lb-table td{padding:14px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle}
@@ -404,7 +408,10 @@ html,body{background:var(--cream);color:var(--text);font-family:'Plus Jakarta Sa
               <div class="lb-title">Your picks</div>
               <div class="lb-sub">Every recommendation we've made for you, tracked over time.</div>
             </div>
-            <div id="lb-stats" style="text-align:right;font-size:12px;color:var(--text3)"></div>
+            <div class="lb-actions">
+              <div id="lb-stats" style="text-align:right;font-size:12px;color:var(--text3)"></div>
+              <button class="lb-refresh" id="lb-refresh-btn" onclick="refreshLeaderboardPrices()"><i class="ti ti-refresh"></i> Refresh prices</button>
+            </div>
           </div>
           <div id="lb-content"><div class="lb-empty"><i class="ti ti-chart-bar"></i>No picks yet — complete the quick intro and we'll find your first stock!</div></div>
         </div>
@@ -435,7 +442,20 @@ html,body{background:var(--cream);color:var(--text);font-family:'Plus Jakarta Sa
 
 <script>
 // ── Config ────────────────────────────────────────────────────────────────────
-const API_BASE = window.location.origin;    // hits our Express server
+function resolveApiBase() {
+  const { protocol, hostname, port, origin } = window.location;
+  const localApiPort = '3002';
+
+  // The app is often opened with file:// or a local preview server. In those
+  // cases the Express API still lives on its configured port, not the page's origin.
+  if (protocol === 'file:') return `http://localhost:${localApiPort}`;
+  if ((hostname === 'localhost' || hostname === '127.0.0.1') && port !== localApiPort) {
+    return `http://${hostname}:${localApiPort}`;
+  }
+  return origin;
+}
+
+const API_BASE = resolveApiBase();
 const SESSION_ID = (() => {
   let s = localStorage.getItem('ae_session');
   if (!s) { s = 'ae_' + Date.now() + '_' + Math.random().toString(36).slice(2); localStorage.setItem('ae_session', s); }
@@ -502,7 +522,8 @@ function setNav(el) {
 // ── Server health check ───────────────────────────────────────────────────────
 async function checkHealth() {
   try {
-    const r = await fetch(API_BASE + '/api/health');
+    const r = await fetch(API_BASE + '/api/health', { cache: 'no-store' });
+    if (!r.ok) throw new Error(`Health check failed (${r.status})`);
     const d = await r.json();
     serverOk = d.ok;
     const dot = document.getElementById('status-dot');
@@ -516,11 +537,13 @@ async function checkHealth() {
       txt.textContent = 'Demo mode';
     }
   } catch {
+    serverOk = false;
     document.getElementById('status-dot').className = 'dot red';
     document.getElementById('status-text').textContent = 'Server offline';
   }
 }
 checkHealth();
+setInterval(checkHealth, 15_000);
 
 // ── Chat helpers ──────────────────────────────────────────────────────────────
 function addMsg(role, html, choices) {
@@ -1204,7 +1227,7 @@ async function callServer(system, messages, opts = {}) {
     console.error(e);
     const msg = (e.name === 'AbortError' || e.message?.includes('timeout'))
       ? 'Request timed out — try again in a moment'
-      : 'Could not connect to server — is it running on port 3000?';
+      : 'Intellivest is reconnecting to the analysis server. Please try again in a moment.';
     return { error: msg };
   }
 }
@@ -1448,37 +1471,81 @@ function switchBB(el, id) {
 }
 
 // ── Leaderboard ───────────────────────────────────────────────────────────────
+function renderLeaderboard(picks) {
+  const lb = document.getElementById('lb-content');
+  if (!picks.length) {
+    document.getElementById('lb-stats').innerHTML = '';
+    lb.innerHTML='<div class="lb-empty"><i class="ti ti-chart-bar"></i>No picks yet — complete the intro and we\'ll find your first stock!</div>';
+    return;
+  }
+  const total = picks.length;
+  const wins = picks.filter(p=>p.returnPct>0).length;
+  const losses = picks.filter(p=>p.returnPct<0).length;
+  const lastUpdate = picks.map(p=>p.priceUpdatedAt).filter(Boolean).sort().reverse()[0];
+  document.getElementById('lb-stats').innerHTML =
+    `${total} picks tracked<br>${wins}W / ${losses}L` +
+    (lastUpdate ? `<br><span style="font-size:11px">Prices ${new Date(lastUpdate).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</span>` : '');
+  lb.innerHTML = `
+    <table class="lb-table">
+      <thead><tr>
+        <th>Ticker</th><th>Type</th><th>Entry</th><th>Current</th><th>Conviction</th><th>Return</th><th>Date</th>
+      </tr></thead>
+      <tbody>${picks.map(p=>{
+        const ret = +p.returnPct||0;
+        const cur = p.currentPrice != null ? +p.currentPrice : null;
+        const cc = p.conviction>=75?'var(--green)':p.conviction>=55?'var(--pink)':'var(--red)';
+        return `<tr>
+          <td><div class="lb-ticker">${p.ticker}</div><div class="lb-co">${p.company}</div></td>
+          <td style="font-size:12px;color:var(--text3)">${(p.instrument||'Stock').split(' ')[0]}</td>
+          <td style="font-size:13px;font-weight:600">$${(+p.entryPrice).toFixed(2)}</td>
+          <td style="font-size:13px;font-weight:600">${cur!=null?'$'+cur.toFixed(2):'—'}</td>
+          <td><div class="conv-badge" style="background:${cc}22;color:${cc};border:1px solid ${cc}44">${p.conviction}</div></td>
+          <td><div class="lb-ret ${ret>0?'up':ret<0?'dn':'flat'}">${ret>0?'+':''}${ret.toFixed(2)}%</div></td>
+          <td style="font-size:11px;color:var(--text3)">${new Date(p.pickedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</td>
+        </tr>`;}).join('')}
+      </tbody>
+    </table>`;
+}
+
 async function loadLeaderboard() {
   try {
-    const r = await fetch(API_BASE+'/api/picks');
-    const picks = await r.json();
-    const lb = document.getElementById('lb-content');
-    if (!picks.length) {
-      lb.innerHTML='<div class="lb-empty"><i class="ti ti-chart-bar"></i>No picks yet — complete the intro and we\'ll find your first stock!</div>';
+    // Pull live prices first so returns aren't stuck at 0%
+    const refreshed = await fetch(API_BASE+'/api/picks/refresh', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'
+    }).then(r => r.ok ? r.json() : null).catch(() => null);
+
+    if (refreshed?.picks) {
+      renderLeaderboard(refreshed.picks);
       return;
     }
-    const total = picks.length;
-    const wins = picks.filter(p=>p.returnPct>0).length;
-    document.getElementById('lb-stats').innerHTML = `${total} picks tracked<br>${wins}W / ${total-wins}L`;
-    lb.innerHTML = `
-      <table class="lb-table">
-        <thead><tr>
-          <th>Ticker</th><th>Type</th><th>Entry price</th><th>Conviction</th><th>Return</th><th>Date</th>
-        </tr></thead>
-        <tbody>${picks.map(p=>{
-          const ret = p.returnPct||0;
-          const cc = p.conviction>=75?'var(--green)':p.conviction>=55?'var(--pink)':'var(--red)';
-          return `<tr>
-            <td><div class="lb-ticker">${p.ticker}</div><div class="lb-co">${p.company}</div></td>
-            <td style="font-size:12px;color:var(--text3)">${(p.instrument||'Stock').split(' ')[0]}</td>
-            <td style="font-size:13px;font-weight:600">$${(+p.entryPrice).toFixed(2)}</td>
-            <td><div class="conv-badge" style="background:${cc}22;color:${cc};border:1px solid ${cc}44">${p.conviction}</div></td>
-            <td><div class="lb-ret ${ret>0?'up':ret<0?'dn':'flat'}">${ret>0?'+':''}${ret.toFixed(2)}%</div></td>
-            <td style="font-size:11px;color:var(--text3)">${new Date(p.pickedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</td>
-          </tr>`;}).join('')}
-        </tbody>
-      </table>`;
-  } catch { document.getElementById('lb-content').innerHTML='<div class="lb-empty"><i class="ti ti-wifi-off"></i>Could not load leaderboard. Is the server running?</div>'; }
+
+    const r = await fetch(API_BASE+'/api/picks');
+    renderLeaderboard(await r.json());
+  } catch {
+    document.getElementById('lb-content').innerHTML='<div class="lb-empty"><i class="ti ti-wifi-off"></i>Could not load leaderboard. Is the server running?</div>';
+  }
+}
+
+async function refreshLeaderboardPrices() {
+  const btn = document.getElementById('lb-refresh-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Updating…'; }
+  try {
+    const r = await fetch(API_BASE+'/api/picks/refresh', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      toast(d.error || 'Could not refresh prices');
+      return;
+    }
+    renderLeaderboard(d.picks || []);
+    const failNote = d.failed?.length ? ` (${d.failed.join(', ')} failed)` : '';
+    toast(`Updated ${d.updated} pick${d.updated===1?'':'s'}${failNote}`);
+  } catch {
+    toast('Could not refresh prices — is the server running?');
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-refresh"></i> Refresh prices'; }
+  }
 }
 
 // ── Watchlist ─────────────────────────────────────────────────────────────────
